@@ -1,4 +1,7 @@
 .PHONY: run
 
-run:
-	go run ./cmd/api
+gateway:
+	go run ./cmd/gateway
+
+backend:
+	go run ./cmd/backend

@@ -3,10 +3,21 @@ package main
 import (
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 )
 
 func main() {
+	usersURL, err := url.Parse("http://localhost:8081")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	usersProxy := httputil.NewSingleHostReverseProxy(usersURL)
+
 	mux := http.NewServeMux()
+
+	mux.Handle("/api/users/", usersProxy)
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -24,5 +35,5 @@ func main() {
 		log.Fatal(err)
 	}
 
-	
+
 }
