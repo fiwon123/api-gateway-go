@@ -1,0 +1,29 @@
+services:
+  gateway:
+    build:
+      context: .
+      args:
+        SERVICE: gateway
+    ports:
+      - "8080:8080"
+    environment:
+      JWT_SECRET: local-development-secret
+      JWT_ISSUER: local-auth
+      JWT_AUDIENCE: api-gateway
+      USERS_URL: http://backend:8081
+      ORDERS_URL: http://orders:8082
+    depends_on:
+      - backend
+      - orders
+
+  backend:
+    build:
+      context: .
+      args:
+        SERVICE: backend
+
+  orders:
+    build:
+      context: .
+      args:
+        SERVICE: orders

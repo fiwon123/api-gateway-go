@@ -2,7 +2,4 @@ module github.com/fiwon123/api-gateway-go
 
 go 1.26.7
 
-require (
-	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
-	github.com/google/uuid v1.6.0 // indirect
-)
+require github.com/golang-jwt/jwt/v5 v5.3.1
