@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"log"
@@ -8,6 +9,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/fiwon123/api-gateway-go/internal/auth"
@@ -66,12 +69,45 @@ func main() {
 	}
 
 	log.Println("API gateway listening on http://localhost:8080")
-	
-	if err := server.ListenAndServe(); err != nil {
-		log.Fatal(err)
+
+	serverErrors := make(chan error, 1)
+
+
+	go func() {
+		serverErrors <- server.ListenAndServe()
+	}()
+
+	shutdown := make(chan os.Signal, 1)
+
+	signal.Notify(
+		shutdown,
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+
+	select {
+	case err := <-serverErrors:
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server error: %v", err)
+		}
+
+	case signal := <-shutdown:
+		log.Printf("received signal: %s", signal)
 	}
 
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		10*time.Second,
+	)
+	defer cancel()
 
+	log.Println("shutting down gateway")
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Printf("graceful shutdown failed: %v", err)
+	}
+
+	log.Println("gateway stopped")
 }
 
 
