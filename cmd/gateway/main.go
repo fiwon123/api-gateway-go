@@ -20,12 +20,18 @@ func main() {
 		log.Fatal(err)
 	}
 
+	orderURL, err := url.Parse("http://localhost:8082")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		log.Fatal("JWT_SECRET is required")
 	}
 
 	usersProxy := httputil.NewSingleHostReverseProxy(usersURL)
+	ordersProxy := httputil.NewSingleHostReverseProxy(orderURL)
 
 	mux := http.NewServeMux()
 
@@ -35,6 +41,16 @@ func main() {
 							logging,
 							jwtAuthentication([]byte(jwtSecret)),
 						))
+
+	mux.Handle(
+		"/api/orders/",
+		withMiddleware(
+			ordersProxy,
+			requestID,
+			logging,
+			jwtAuthentication([]byte(jwtSecret)),
+		),
+	)
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
