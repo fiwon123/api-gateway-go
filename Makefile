@@ -1,7 +1,7 @@
 .PHONY: run
 
 gateway:
-	go run ./cmd/gateway
+	API_TOKEN=dev-secret go run ./cmd/gateway
 
 backend:
 	go run ./cmd/backend

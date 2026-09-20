@@ -2,11 +2,14 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -14,6 +17,11 @@ func main() {
 	usersURL, err := url.Parse("http://localhost:8081")
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	expectedToken := os.Getenv("API_TOKEN")
+	if expectedToken == "" {
+		log.Fatal("API_TOKEN is required")
 	}
 
 	usersProxy := httputil.NewSingleHostReverseProxy(usersURL)
@@ -24,6 +32,7 @@ func main() {
 							usersProxy,
 							requestID,
 							logging,
+							authentication(expectedToken),
 						))
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -94,4 +103,38 @@ func newRequestID() string {
 	}
 
 	return hex.EncodeToString(bytes)
+}
+
+func authentication(expectedToken string) middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get("Authorization")
+
+			if !strings.HasPrefix(authHeader,  "Bearer ") {
+				w.Header().Set("WWW-Authenticate", "Bearer")
+				http.Error(
+					w,
+					`{"error":"missing bearer token"}`,
+					http.StatusUnauthorized,
+				)
+				return
+			}
+
+			providedToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+			if subtle.ConstantTimeCompare(
+				[]byte(providedToken),
+				[]byte(expectedToken),
+			) != 1 {
+				http.Error(
+					w,
+					`{"error":"invalid token"}`,
+					http.StatusUnauthorized,
+				)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }
