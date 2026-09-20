@@ -11,6 +11,11 @@ func main() {
 		fmt.Fprintf(w, `{"message":"response from users service","path":"%s"}`, r.URL.Path)
 	})
 
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok","service":"users"}`))
+	})
+
 	log.Println("Users service listening on http://localhost:8081")
 	log.Fatal(http.ListenAndServe(":8081", nil))
 }

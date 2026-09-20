@@ -18,6 +18,11 @@ func main() {
 		)
 	})
 
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok","service":"orders"}`))
+	})
+
 	log.Println("Orders service listening on http://localhost:8082")
 	log.Fatal(http.ListenAndServe(":8082", nil))
 }

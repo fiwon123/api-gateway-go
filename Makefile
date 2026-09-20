@@ -20,6 +20,9 @@ orders:
 health:
 	curl -i http://localhost:8080/health
 
+ready:
+	curl -i http://localhost:8080/ready 
+
 fmt:
 	gofmt -w .
 

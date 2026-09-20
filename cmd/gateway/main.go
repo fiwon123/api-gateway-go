@@ -24,7 +24,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	orderURL, err := url.Parse("http://localhost:8082")
+	ordersURL, err := url.Parse("http://localhost:8082")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func main() {
 	}
 
 	usersProxy := newProxy(usersURL)
-	ordersProxy := newProxy(orderURL)
+	ordersProxy := newProxy(ordersURL)
 
 	mux := http.NewServeMux()
 
@@ -68,6 +68,11 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	mux.HandleFunc(
+		"/ready",
+		readinessHandler(usersURL, ordersURL),
+	)
 
 	server := &http.Server{
 		Addr:    ":8080",
@@ -184,4 +189,60 @@ func newProxy(target *url.URL) http.Handler {
 	}
 
 	return proxy
+}
+
+func readinessHandler(
+	targets ...*url.URL,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		client := &http.Client{
+			Timeout: 2 * time.Second,
+		}
+
+		for _, target := range targets {
+			healthURL := *target
+			healthURL.Path = "/health"
+			healthURL.RawQuery = ""
+
+			req, err := http.NewRequestWithContext(
+				r.Context(),
+				http.MethodGet,
+				healthURL.String(),
+				nil,
+			)
+			if err != nil {
+				http.Error(
+					w,
+					`{"status":"not ready"}`,
+					http.StatusServiceUnavailable,
+				)
+				return
+			}
+
+			response, err := client.Do(req)
+			if err != nil {
+				http.Error(
+					w,
+					`{"status":"not ready"}`,
+					http.StatusServiceUnavailable,
+				)
+				return
+			}
+
+			response.Body.Close()
+
+			if response.StatusCode < 200 || response.StatusCode >= 300 {
+				http.Error(
+					w,
+					`{"status":"not ready"}`,
+					http.StatusServiceUnavailable,
+				)
+				return
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ready"}`))
+	}
 }
