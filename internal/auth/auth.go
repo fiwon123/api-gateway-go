@@ -8,13 +8,16 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func JwtAuthentication(secret []byte) middleware.Middleware {
+func JwtAuthentication(
+	secret []byte,
+	expectedIssuer string,
+	expectedAudience string,
+) middleware.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 
 			if !strings.HasPrefix(authHeader, "Bearer ") {
-				w.Header().Set("WWW-Authenticate", "Bearer")
 				http.Error(
 					w,
 					`{"error":"missing bearer token"}`,
@@ -48,7 +51,24 @@ func JwtAuthentication(secret []byte) middleware.Middleware {
 				return
 			}
 
-			// Pass the authenticated user's ID to the backend.
+			if claims.Issuer != expectedIssuer {
+				http.Error(
+					w,
+					`{"error":"invalid token issuer"}`,
+					http.StatusUnauthorized,
+				)
+				return
+			}
+
+			if !hasAudience(claims.Audience, expectedAudience) {
+				http.Error(
+					w,
+					`{"error":"invalid token audience"}`,
+					http.StatusUnauthorized,
+				)
+				return
+			}
+
 			if claims.Subject != "" {
 				r.Header.Set("X-User-ID", claims.Subject)
 			}
@@ -56,4 +76,17 @@ func JwtAuthentication(secret []byte) middleware.Middleware {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func hasAudience(
+	audiences jwt.ClaimStrings,
+	expected string,
+) bool {
+	for _, audience := range audiences {
+		if audience == expected {
+			return true
+		}
+	}
+
+	return false
 }

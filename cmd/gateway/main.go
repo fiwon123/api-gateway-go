@@ -40,12 +40,16 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.Handle("/api/users/", middleware.WithMiddleware(
-							usersProxy,
-							requestID,
-							logging,
-							limiter.RateLimit(60, time.Minute),
-							auth.JwtAuthentication([]byte(jwtSecret)),
-						))
+		usersProxy,
+		requestID,
+		logging,
+		limiter.RateLimit(60, time.Minute),
+		auth.JwtAuthentication(
+			[]byte(jwtSecret),
+			os.Getenv("JWT_ISSUER"),
+			os.Getenv("JWT_AUDIENCE"),
+		),
+	))
 
 	mux.Handle(
 		"/api/orders/",
@@ -54,7 +58,9 @@ func main() {
 			requestID,
 			logging,
 			limiter.RateLimit(60, time.Minute),
-			auth.JwtAuthentication([]byte(jwtSecret)),
+			auth.JwtAuthentication([]byte(jwtSecret),
+				os.Getenv("JWT_ISSUER"),
+				os.Getenv("JWT_AUDIENCE")),
 		),
 	)
 
@@ -64,14 +70,13 @@ func main() {
 	})
 
 	server := &http.Server{
-		Addr: ":8080",
+		Addr:    ":8080",
 		Handler: mux,
 	}
 
 	log.Println("API gateway listening on http://localhost:8080")
 
 	serverErrors := make(chan error, 1)
-
 
 	go func() {
 		serverErrors <- server.ListenAndServe()
@@ -109,9 +114,6 @@ func main() {
 
 	log.Println("gateway stopped")
 }
-
-
-
 
 func requestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -158,10 +160,10 @@ func newProxy(target *url.URL) http.Handler {
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
 	proxy.Transport = &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 20,
-		IdleConnTimeout: 90 * time.Second,
-		TLSHandshakeTimeout: 5 * time.Second,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   20,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
 		ResponseHeaderTimeout: 10 * time.Second,
 	}
 

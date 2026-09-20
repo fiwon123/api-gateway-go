@@ -12,11 +12,15 @@ import (
 
 func TestJWTAuthentication(t *testing.T) {
 	secret := []byte("test-secret")
+	issuer := "test-issuer"
+	audience := "test-audience"
 
 	token := jwt.NewWithClaims(
 		jwt.SigningMethodHS256,
 		jwt.RegisteredClaims{
 			Subject:   "user-123",
+			Issuer:    issuer,
+			Audience:  jwt.ClaimStrings{audience},
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 		},
 	)
@@ -26,7 +30,11 @@ func TestJWTAuthentication(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handler := auth.JwtAuthentication(secret)(
+	handler := auth.JwtAuthentication(
+		secret,
+		issuer,
+		audience,
+	)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),
@@ -57,7 +65,11 @@ func TestJWTAuthentication(t *testing.T) {
 }
 
 func TestJWTAuthenticationRejectsMissingToken(t *testing.T) {
-	handler := auth.JwtAuthentication([]byte("test-secret"))(
+	handler := auth.JwtAuthentication(
+		[]byte("test-secret"),
+		"test-issuer",
+		"test-audience",
+	)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),

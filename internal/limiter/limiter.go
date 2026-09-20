@@ -12,14 +12,14 @@ import (
 
 type visitor struct {
 	windowStart time.Time
-	requests int
+	requests    int
 }
 
 func RateLimit(maxRequests int, window time.Duration) middleware.Middleware {
 	var mu sync.Mutex
 	visitors := make(map[string]visitor)
 
-	return func(next http.Handler) http.Handler{
+	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			client := clientKey(r)
 			now := time.Now()
@@ -29,9 +29,9 @@ func RateLimit(maxRequests int, window time.Duration) middleware.Middleware {
 			current, exists := visitors[client]
 
 			if !exists || now.Sub(current.windowStart) >= window {
-				current = visitor {
+				current = visitor{
 					windowStart: now,
-					requests: 0,
+					requests:    0,
 				}
 			}
 
@@ -39,7 +39,7 @@ func RateLimit(maxRequests int, window time.Duration) middleware.Middleware {
 			visitors[client] = current
 
 			allowed := current.requests <= maxRequests
-			
+
 			mu.Unlock()
 
 			if !allowed {
@@ -57,7 +57,7 @@ func RateLimit(maxRequests int, window time.Duration) middleware.Middleware {
 				)
 				return
 			}
-			
+
 			next.ServeHTTP(w, r)
 		})
 	}

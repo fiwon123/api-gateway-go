@@ -11,12 +11,18 @@ import (
 
 func main() {
 	secret := os.Getenv("JWT_SECRET")
+
 	if secret == "" {
 		log.Fatal("JWT_SECRET is required")
 	}
 
+	issuer := os.Getenv("JWT_ISSUER")
+	audience := os.Getenv("JWT_AUDIENCE")
+
 	claims := jwt.RegisteredClaims{
 		Subject:   "user-123",
+		Issuer:    issuer,
+		Audience:  jwt.ClaimStrings{audience},
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 	}
 
