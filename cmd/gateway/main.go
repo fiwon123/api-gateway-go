@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/rand"
-	"crypto/subtle"
 	"encoding/hex"
 	"log"
 	"net/http"
@@ -11,6 +10,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func main() {
@@ -19,9 +20,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	expectedToken := os.Getenv("API_TOKEN")
-	if expectedToken == "" {
-		log.Fatal("API_TOKEN is required")
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET is required")
 	}
 
 	usersProxy := httputil.NewSingleHostReverseProxy(usersURL)
@@ -32,7 +33,7 @@ func main() {
 							usersProxy,
 							requestID,
 							logging,
-							authentication(expectedToken),
+							jwtAuthentication([]byte(jwtSecret)),
 						))
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -105,12 +106,12 @@ func newRequestID() string {
 	return hex.EncodeToString(bytes)
 }
 
-func authentication(expectedToken string) middleware {
+func jwtAuthentication(secret []byte) middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 
-			if !strings.HasPrefix(authHeader,  "Bearer ") {
+			if !strings.HasPrefix(authHeader, "Bearer ") {
 				w.Header().Set("WWW-Authenticate", "Bearer")
 				http.Error(
 					w,
@@ -120,18 +121,34 @@ func authentication(expectedToken string) middleware {
 				return
 			}
 
-			providedToken := strings.TrimPrefix(authHeader, "Bearer ")
+			rawToken := strings.TrimPrefix(authHeader, "Bearer ")
 
-			if subtle.ConstantTimeCompare(
-				[]byte(providedToken),
-				[]byte(expectedToken),
-			) != 1 {
+			claims := &jwt.RegisteredClaims{}
+
+			token, err := jwt.ParseWithClaims(
+				rawToken,
+				claims,
+				func(token *jwt.Token) (any, error) {
+					if token.Method != jwt.SigningMethodHS256 {
+						return nil, jwt.ErrSignatureInvalid
+					}
+
+					return secret, nil
+				},
+			)
+
+			if err != nil || !token.Valid {
 				http.Error(
 					w,
-					`{"error":"invalid token"}`,
+					`{"error":"invalid or expired token"}`,
 					http.StatusUnauthorized,
 				)
 				return
+			}
+
+			// Pass the authenticated user's ID to the backend.
+			if claims.Subject != "" {
+				r.Header.Set("X-User-ID", claims.Subject)
 			}
 
 			next.ServeHTTP(w, r)

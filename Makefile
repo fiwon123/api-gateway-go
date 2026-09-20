@@ -1,7 +1,7 @@
 .PHONY: run
 
 gateway:
-	API_TOKEN=dev-secret go run ./cmd/gateway
+	JWT_SECRET=local-development-secret go run ./cmd/gateway
 
 backend:
 	go run ./cmd/backend
