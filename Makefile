@@ -3,12 +3,16 @@
 JWT_SECRET ?= local-development-secret
 JWT_ISSUER ?= local-auth
 JWT_AUDIENCE ?= api-gateway
+USERS_URL ?= http://localhost:8081
+ORDERS_URL ?= http://localhost:8082
 
 
 gateway:
 	JWT_SECRET=$(JWT_SECRET) \
 	JWT_ISSUER=$(JWT_ISSUER) \
 	JWT_AUDIENCE=$(JWT_AUDIENCE) \
+	USERS_URL=$(USERS_URL) \
+	ORDERS_URL=$(ORDERS_URL) \
 	go run ./cmd/gateway
 
 backend:
@@ -25,6 +29,12 @@ ready:
 
 fmt:
 	gofmt -w .
+
+metrics:
+	curl http://localhost:8080/metrics
+
+tests:
+	go test ./...
 
 req_user:
 	@TOKEN=$$( \

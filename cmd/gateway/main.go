@@ -20,12 +20,17 @@ import (
 )
 
 func main() {
-	usersURL, err := url.Parse("http://localhost:8081")
+	usersURL, err := url.Parse(
+		getEnv("USERS_URL", "http://localhost:8081"),
+	)
+
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	ordersURL, err := url.Parse("http://localhost:8082")
+	ordersURL, err := url.Parse(
+		getEnv("ORDERS_URL", "http://localhost:8082"),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -40,6 +45,9 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	jwtIssuer := getEnv("JWT_ISSUER", "local-auth")
+	jwtAudience := getEnv("JWT_AUDIENCE", "api-gateway")
+
 	mux.Handle("/api/users/", middleware.WithMiddleware(
 		usersProxy,
 		requestID,
@@ -48,8 +56,8 @@ func main() {
 		limiter.RateLimit(60, time.Minute),
 		auth.JwtAuthentication(
 			[]byte(jwtSecret),
-			os.Getenv("JWT_ISSUER"),
-			os.Getenv("JWT_AUDIENCE"),
+			jwtIssuer,
+			jwtAudience,
 		),
 	))
 
@@ -62,8 +70,8 @@ func main() {
 			logging,
 			limiter.RateLimit(60, time.Minute),
 			auth.JwtAuthentication([]byte(jwtSecret),
-				os.Getenv("JWT_ISSUER"),
-				os.Getenv("JWT_AUDIENCE")),
+				jwtIssuer,
+				jwtAudience),
 		),
 	)
 
@@ -250,4 +258,14 @@ func readinessHandler(
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ready"}`))
 	}
+}
+
+func getEnv(key string, fallback string) string {
+	value := os.Getenv(key)
+
+	if value == "" {
+		return fallback
+	}
+
+	return value
 }
