@@ -8,10 +8,11 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/fiwon123/api-gateway-go/internal/auth"
+	"github.com/fiwon123/api-gateway-go/internal/limiter"
+	"github.com/fiwon123/api-gateway-go/internal/middleware"
 )
 
 func main() {
@@ -35,20 +36,22 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.Handle("/api/users/", withMiddleware(
+	mux.Handle("/api/users/", middleware.WithMiddleware(
 							usersProxy,
 							requestID,
 							logging,
-							jwtAuthentication([]byte(jwtSecret)),
+							limiter.RateLimit(60, time.Minute),
+							auth.JwtAuthentication([]byte(jwtSecret)),
 						))
 
 	mux.Handle(
 		"/api/orders/",
-		withMiddleware(
+		middleware.WithMiddleware(
 			ordersProxy,
 			requestID,
 			logging,
-			jwtAuthentication([]byte(jwtSecret)),
+			limiter.RateLimit(60, time.Minute),
+			auth.JwtAuthentication([]byte(jwtSecret)),
 		),
 	)
 
@@ -71,15 +74,8 @@ func main() {
 
 }
 
-type middleware func(http.Handler) http.Handler
 
-func withMiddleware(handler http.Handler, middlewares ...middleware) http.Handler {
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		handler = middlewares[i](handler)
-	}
 
-	return handler
-}
 
 func requestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -120,56 +116,6 @@ func newRequestID() string {
 	}
 
 	return hex.EncodeToString(bytes)
-}
-
-func jwtAuthentication(secret []byte) middleware {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authHeader := r.Header.Get("Authorization")
-
-			if !strings.HasPrefix(authHeader, "Bearer ") {
-				w.Header().Set("WWW-Authenticate", "Bearer")
-				http.Error(
-					w,
-					`{"error":"missing bearer token"}`,
-					http.StatusUnauthorized,
-				)
-				return
-			}
-
-			rawToken := strings.TrimPrefix(authHeader, "Bearer ")
-
-			claims := &jwt.RegisteredClaims{}
-
-			token, err := jwt.ParseWithClaims(
-				rawToken,
-				claims,
-				func(token *jwt.Token) (any, error) {
-					if token.Method != jwt.SigningMethodHS256 {
-						return nil, jwt.ErrSignatureInvalid
-					}
-
-					return secret, nil
-				},
-			)
-
-			if err != nil || !token.Valid {
-				http.Error(
-					w,
-					`{"error":"invalid or expired token"}`,
-					http.StatusUnauthorized,
-				)
-				return
-			}
-
-			// Pass the authenticated user's ID to the backend.
-			if claims.Subject != "" {
-				r.Header.Set("X-User-ID", claims.Subject)
-			}
-
-			next.ServeHTTP(w, r)
-		})
-	}
 }
 
 func newProxy(target *url.URL) http.Handler {
