@@ -15,6 +15,7 @@ import (
 
 	"github.com/fiwon123/api-gateway-go/internal/auth"
 	"github.com/fiwon123/api-gateway-go/internal/limiter"
+	"github.com/fiwon123/api-gateway-go/internal/metrics"
 	"github.com/fiwon123/api-gateway-go/internal/middleware"
 )
 
@@ -42,6 +43,7 @@ func main() {
 	mux.Handle("/api/users/", middleware.WithMiddleware(
 		usersProxy,
 		requestID,
+		metrics.Middleware,
 		logging,
 		limiter.RateLimit(60, time.Minute),
 		auth.JwtAuthentication(
@@ -56,6 +58,7 @@ func main() {
 		middleware.WithMiddleware(
 			ordersProxy,
 			requestID,
+			metrics.Middleware,
 			logging,
 			limiter.RateLimit(60, time.Minute),
 			auth.JwtAuthentication([]byte(jwtSecret),
@@ -73,6 +76,8 @@ func main() {
 		"/ready",
 		readinessHandler(usersURL, ordersURL),
 	)
+
+	mux.HandleFunc("/metrics", metrics.Handler)
 
 	server := &http.Server{
 		Addr:    ":8080",
