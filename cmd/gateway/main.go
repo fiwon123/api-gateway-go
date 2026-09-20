@@ -30,8 +30,8 @@ func main() {
 		log.Fatal("JWT_SECRET is required")
 	}
 
-	usersProxy := httputil.NewSingleHostReverseProxy(usersURL)
-	ordersProxy := httputil.NewSingleHostReverseProxy(orderURL)
+	usersProxy := newProxy(usersURL)
+	ordersProxy := newProxy(orderURL)
 
 	mux := http.NewServeMux()
 
@@ -170,4 +170,34 @@ func jwtAuthentication(secret []byte) middleware {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func newProxy(target *url.URL) http.Handler {
+	proxy := httputil.NewSingleHostReverseProxy(target)
+
+	proxy.Transport = &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 20,
+		IdleConnTimeout: 90 * time.Second,
+		TLSHandshakeTimeout: 5 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+	}
+
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		log.Printf(
+			"backend error path=%s request_id=%s error=%v",
+			r.URL.Path,
+			r.Header.Get("X-Request-ID"),
+			err,
+		)
+
+		w.Header().Set("Content-Type", "application/json")
+		http.Error(
+			w,
+			`{"error":"backend unavailable"}`,
+			http.StatusBadGateway,
+		)
+	}
+
+	return proxy
 }
