@@ -48,7 +48,12 @@ req_user:
 		http://localhost:8080/api/users/42
 
 req_order:
-	@TOKEN=$$(JWT_SECRET=$(JWT_SECRET) go run ./cmd/token); \
+	@TOKEN=$$( \
+		JWT_SECRET=$(JWT_SECRET) \
+		JWT_ISSUER=$(JWT_ISSUER) \
+		JWT_AUDIENCE=$(JWT_AUDIENCE) \
+		go run ./cmd/token \
+	); \
 	curl -i \
 		-H "Authorization: Bearer $$TOKEN" \
 		http://localhost:8080/api/orders/99
